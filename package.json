@@ -1,0 +1,20 @@
+{
+  "name": "opi-targalt",
+  "version": "0.0.1",
+  "description": "Õpi targalt",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "./node_modules/.bin/ts-node src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Anton Fedchenko",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^16",
+    "@types/yargs": "^17",
+    "ts-node": "^10",
+    "typescript": "^4",
+    "yargs": "^17",
+    "zx": "^4"
+  }
+}
