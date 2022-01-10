@@ -18,7 +18,7 @@ But it is trivial to make the project extensible so that it supports any TTS API
 
 Proper instructions on how to use are to follow but if you are eager to try then follow these steps:
 
-You need `docker`, `docker-compose`, `node`, `pnpm`.
+You need `docker`, `docker-compose`, `node`, `pnpm`, `ffmpeg`, `curl`.
 
 1. Download and unpack TTS models to `./models` from https://github.com/TartuNLP/text-to-speech-worker/releases
 2. `pnpm install`
