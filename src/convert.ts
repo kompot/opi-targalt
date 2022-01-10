@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 
 import zx, { ProcessOutput } from "zx";
 import klaw from "klaw";
@@ -15,13 +16,37 @@ type TranslationChunk = {
   end: plugin.Duration;
 };
 
-export const findAllSubtitlesFiles = async (
+type InputVideoWithSrt = {
+  videoPath: string;
+  subtitlesPath: string;
+};
+
+const supportedSubtitlesExtension = ["srt"];
+// TODO make this configurable?
+const supportedVideoExtensions = ["mkv", "mp4"];
+
+export const findFilesToProcess = async (
   inputFolder: string
-): Promise<string[]> => {
-  const sutitleTiles: string[] = [];
+): Promise<InputVideoWithSrt[]> => {
+  const sutitleTiles: InputVideoWithSrt[] = [];
   const walker = klaw(inputFolder).on("data", item => {
-    if (item.stats.isFile() && item.path.endsWith(".srt")) {
-      sutitleTiles.push(item.path);
+    if (
+      item.stats.isFile() &&
+      item.path.endsWith("." + supportedSubtitlesExtension)
+    ) {
+      const videoPathWithoutExt = item.path.substring(0, item.path.length - 4);
+      const subtitlesPath = item.path;
+      const videoPathExtension = supportedVideoExtensions.find(ext => {
+        return fs.existsSync(videoPathWithoutExt + "." + ext);
+      });
+      if (videoPathExtension === undefined) {
+        console.error("Unable to find video file for", subtitlesPath);
+      } else {
+        sutitleTiles.push({
+          subtitlesPath: subtitlesPath,
+          videoPath: videoPathWithoutExt + "." + videoPathExtension,
+        });
+      }
     }
   });
 
@@ -29,8 +54,10 @@ export const findAllSubtitlesFiles = async (
   return sutitleTiles;
 };
 
-export const findTranslationChunks = (fileName: string): TranslationChunk[] => {
-  const content = fs.readFileSync(fileName, "utf-8");
+export const findTranslationChunks = (
+  file: InputVideoWithSrt
+): TranslationChunk[] => {
+  const content = fs.readFileSync(file.subtitlesPath, "utf-8");
   var parser = new srtParser2();
   const subtitles = parser.fromSrt(content);
 
@@ -57,40 +84,80 @@ const periodFormat = "HH_mm_ss_SSS";
 
 export const textToSpeech = (
   translation: TranslationChunk,
-  outputFolder: string
+  file: InputVideoWithSrt,
+  inputFolder: string,
+  outputFolder: string,
+  retryCount: number = 0
 ): Promise<ProcessOutput | void> => {
   const request = JSON.stringify({
     text: translation.text,
     speaker: "mari",
-    speed: 0.8,
+    speed: 1,
   });
+  const outputAudioFolder = getOutputFolder(
+    "audio",
+    inputFolder,
+    outputFolder,
+    file
+  );
+
+  if (!fs.existsSync(outputAudioFolder)) {
+    fs.mkdirSync(outputAudioFolder, { recursive: true });
+  }
+
   const outputFileName =
-    outputFolder +
-    "/" +
+    outputAudioFolder +
+    path.sep +
     translation.start.format(periodFormat) +
     "-" +
     translation.end.format(periodFormat) +
     ".wav";
+
   if (fs.existsSync(outputFileName)) {
     return Promise.resolve();
   }
 
-  return zx.$`curl \
-    -X POST http://localhost:5000/text-to-speech/v2 \
-    -H 'Content-Type: application/json' \
-    -d ${request} \
-    -o ${outputFileName}`;
+  if (retryCount > 3) {
+    throw new Error("Failed to convert text to speech, will exit");
+  }
+
+  try {
+    return zx.$`curl \
+      -X POST http://localhost:5000/text-to-speech/v2 \
+      -H 'Content-Type: application/json' \
+      -d ${request} \
+      -o ${outputFileName}`;
+  } catch (e) {
+    console.error("Failed to convert text to speech, will retry");
+    return textToSpeech(
+      translation,
+      file,
+      inputFolder,
+      outputFolder,
+      retryCount + 1
+    );
+  }
 };
 
 export const createAudioTrack = async (
-  translationChunks: TranslationChunk[]
-): Promise<string> => {
+  translationChunks: TranslationChunk[],
+  file: InputVideoWithSrt,
+  inputFolder: string,
+  outputFolder: string
+): Promise<void> => {
+  const outputAudioFolder = getOutputFolder(
+    "audio",
+    inputFolder,
+    outputFolder,
+    file
+  );
+
   const audioInputs = translationChunks.flatMap(tc => {
     return [
       "-i",
-      `./output/${tc.start.format(periodFormat)}-${tc.end.format(
+      `${outputAudioFolder}${path.sep}${tc.start.format(
         periodFormat
-      )}.wav`,
+      )}-${tc.end.format(periodFormat)}.wav`,
     ];
   });
 
@@ -110,6 +177,7 @@ export const createAudioTrack = async (
       return `[s${i + 1}]`;
     })
     .join("");
+  // const command = ``;
 
   // TODO customize ENG here
   const filterComplex = [
@@ -124,27 +192,89 @@ export const createAudioTrack = async (
       "[mixout]",
   ];
 
-  const resultFile = './output/result7.mp3';
+  const resultAudioFile = getOutputAudioFilename(
+    inputFolder,
+    outputFolder,
+    file
+  );
 
   await zx.$`ffmpeg \
-  -i ./input/FamousTvSeries.S01E02.mkv \
+  -i ${file.videoPath} \
   ${audioInputs} \
   ${filterComplex} \
   -map [mixout] \
-  ${resultFile}`;
-  return resultFile;
+  ${resultAudioFile}`;
 };
 
-export const createVideo = async () => {
+export const createVideo = async (
+  inputFolder: string,
+  outputFolder: string,
+  file: InputVideoWithSrt
+) => {
+  const outputVideoFile = getOutputVideoFilename(
+    inputFolder,
+    outputFolder,
+    file
+  );
+  const audioTrackFile = getOutputAudioFilename(
+    inputFolder,
+    outputFolder,
+    file
+  );
   await zx.$`
     ffmpeg \
-     -i ./input/FamousTvSeries.S01E02.mkv \
-     -i ./output/result7.mp3 \
-     -f srt -i ./input/FamousTvSeries.S01E02.srt \
+     -i ${file.videoPath} \
+     -i ${audioTrackFile} \
+     -f srt -i ${file.subtitlesPath} \
      -map 1 -map 2 -map 0  \
      -metadata:s:a:0 language=est \
      -metadata:s:s:0 language=est \
      -c copy \
-     ./output/result.mkv
+     ${outputVideoFile}
      `;
 };
+
+export function getOutputVideoFilename(
+  inputFolder: string,
+  outputFolder: string,
+  file: InputVideoWithSrt
+) {
+  return (
+    getOutputFolder("root", inputFolder, outputFolder, file) +
+    path.sep +
+    path.basename(file.videoPath)
+  );
+}
+
+export function getOutputAudioFilename(
+  inputFolder: string,
+  outputFolder: string,
+  file: InputVideoWithSrt
+) {
+  return (
+    getOutputFolder("audio", inputFolder, outputFolder, file) +
+    path.sep +
+    "audio-tts.mp3"
+  );
+}
+
+export function getOutputFolder(
+  type: "audio" | "root",
+  inputFolder: string,
+  outputFolder: string,
+  file: InputVideoWithSrt
+) {
+  const root =
+    outputFolder +
+    path.sep +
+    path.relative(inputFolder, path.dirname(file.subtitlesPath));
+  if (type === "root") {
+    return root;
+  }
+  return (
+    root +
+    path.sep +
+    "audio_" +
+    path.basename(file.videoPath, path.extname(file.videoPath))
+  );
+}

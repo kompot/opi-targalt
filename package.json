@@ -4,8 +4,7 @@
   "description": "Õpi targalt",
   "main": "src/index.ts",
   "scripts": {
-    "start": "./node_modules/.bin/ts-node src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "./node_modules/.bin/ts-node src/index.ts"
   },
   "author": "Anton Fedchenko",
   "license": "MIT",
