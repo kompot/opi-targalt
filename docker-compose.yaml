@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  opi-targalt:
+    depends_on: ['tts-est']
+    tty: true
+    build: .
+    volumes:
+      - ./input:/input
+      - ./output:/output
+      # - ${DIR_INPUT?}:/input
+      # - ${DIR_OUTPUT?}:/output
+
+  # tts-est:
+  #   tty: true
+  #   build: ./tts/est

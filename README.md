@@ -12,4 +12,4 @@ All you need is original video file and an .SRT subtitles file.
 
 ## What a weird name?!
 
-Õpi targalt means `learn the smart way` in Estonian.
+`Õpi targalt` means `learn the smart way` in Estonian.

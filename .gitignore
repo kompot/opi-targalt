@@ -1,5 +1,7 @@
 input/*
+output/*
 node_modules/*
 *.mp3
 *.mkv
 *.mp4
+.pnpm-debug.log

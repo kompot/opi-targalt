@@ -1,0 +1,31 @@
+version: "3"
+services:
+  rabbitmq:
+    image: "rabbitmq:3.6-alpine"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+  tts_api:
+    image: ghcr.io/tartunlp/text-to-speech-api:latest
+    environment:
+      - MQ_HOST=rabbitmq
+      - MQ_PORT=5672
+      - MQ_USERNAME=${RABBITMQ_USER}
+      - MQ_PASSWORD=${RABBITMQ_PASS}
+      - GUNICORN_WORKERS=8
+    ports:
+      - "5000:5000"
+    depends_on:
+      - rabbitmq
+  tts_worker_mari:
+    image: ghcr.io/tartunlp/text-to-speech-worker:latest
+    environment:
+      - WORKER_NAME=mari
+      - MQ_HOST=rabbitmq
+      - MQ_PORT=5672
+      - MQ_USERNAME=${RABBITMQ_USER}
+      - MQ_PASSWORD=${RABBITMQ_PASS}
+    volumes:
+      - ./models:/app/models
+    depends_on:
+      - rabbitmq
