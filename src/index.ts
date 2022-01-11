@@ -31,7 +31,7 @@ var argv = cliInterface.parseSync();
 
 (async () => {
   const filesToProcess = await findFilesToProcess(argv.input as string);
-  filesToProcess.forEach(async file => {
+  for (const file of filesToProcess) {
     const outputVideoFile = getOutputVideoFilename(
       argv.input as string,
       argv.output as string,
@@ -72,5 +72,5 @@ var argv = cliInterface.parseSync();
       }
       await createVideo(argv.input as string, argv.output as string, file);
     }
-  });
+  }
 })();

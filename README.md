@@ -6,7 +6,7 @@ Make use of modern text to speech technologies that are able to generate hiqh qu
 
 Use this project to generate a dubbed video file in any language with a half muted original audio track and your language of choice dubbed over it.
 
-All you need is original video file  (`mkv`, `mp4`) and an subtitles (`srt`) file.
+All you need is original video file (`mkv`, `mp4`) and an subtitles (`srt`) file.
 
 ## Only Estonian as of now
 
@@ -27,6 +27,17 @@ You need `docker`, `docker-compose`, `node`, `pnpm`, `ffmpeg`, `curl`.
 5. `pnpm run start -- -i ./input -o ./output`
 
 If everything goes ok then you'll find similarly named video files in the `./output` folder but with an audio track and subtitles embedded.
+
+## TODOs
+
+- make sure that an audio fragment fits within a timeframe and speed it up in case it doesn't
+- add simpler running within docker
+- add ability to sync subtitles (shift sync), probably automatic based on other subtitles?
+  right now this command could be used
+  ```
+  # this will move subtitle 0.8 seconds backward
+  ffmpeg -itsoffset -0.8 -i ./input.srt -c copy output_with_shift.srt
+  ```
 
 ## What a weird name?!
 
