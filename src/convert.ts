@@ -92,7 +92,7 @@ export const textToSpeech = (
   const request = JSON.stringify({
     text: translation.text,
     speaker: "mari",
-    speed: 1,
+    speed: 0.8,
   });
   const outputAudioFolder = getOutputFolder(
     "audio",
@@ -105,13 +105,12 @@ export const textToSpeech = (
     fs.mkdirSync(outputAudioFolder, { recursive: true });
   }
 
-  const outputFileName =
-    outputAudioFolder +
-    path.sep +
-    translation.start.format(periodFormat) +
-    "-" +
-    translation.end.format(periodFormat) +
-    ".wav";
+  const outputFileName = getOutputAudioChunkFilename(
+    inputFolder,
+    outputFolder,
+    translation,
+    file
+  );
 
   if (fs.existsSync(outputFileName)) {
     return Promise.resolve();
@@ -153,31 +152,48 @@ export const createAudioTrack = async (
   );
 
   const audioInputs = translationChunks.flatMap(tc => {
-    return [
-      "-i",
-      `${outputAudioFolder}${path.sep}${tc.start.format(
-        periodFormat
-      )}-${tc.end.format(periodFormat)}.wav`,
-    ];
+    const outputAudioChunkFilename = getOutputAudioChunkFilename(
+      inputFolder,
+      outputFolder,
+      tc,
+      file
+    );
+    return ["-i", outputAudioChunkFilename];
   });
 
-  // TODO speed up audio track so that it fits 500ms before start of the
-  // next chunks
-  // ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ./output/00_00_03_069-00_00_07_698.wav
-  const audioMappings1 = translationChunks
-    .map((tc, i) => {
-      return `[${i + 1}]adelay=delays=${tc.start.asMilliseconds()}:all=1[s${
-        i + 1
-      }];`;
-    })
-    .join("");
+  let audioMappings1 = "";
+
+  for (var i = 0; i < translationChunks.length; i++) {
+    const tc = translationChunks[i];
+    const nextChunkStartInMs =
+      i === translationChunks.length - 1
+        ? Infinity
+        : translationChunks[i + 1].start.asMilliseconds();
+    const outputAudioChunkFilename = getOutputAudioChunkFilename(
+      inputFolder,
+      outputFolder,
+      tc,
+      file
+    );
+
+    let speedUpSetting = await increaseSpeedSetting(
+      outputAudioChunkFilename,
+      nextChunkStartInMs,
+      tc
+    );
+
+    audioMappings1 += `[${
+      i + 1
+    }]${speedUpSetting}adelay=delays=${tc.start.asMilliseconds()}:all=1[s${
+      i + 1
+    }];`;
+  }
 
   const audioMappings2 = translationChunks
     .map((tc, i) => {
       return `[s${i + 1}]`;
     })
     .join("");
-  // const command = ``;
 
   // TODO customize ENG here
   const filterComplex = [
@@ -234,6 +250,49 @@ export const createVideo = async (
      `;
 };
 
+function findSpeedUpFactor(
+  actualDuration: number,
+  targetDuration: number,
+  multiplier: number = 1
+): string {
+  if (actualDuration < targetDuration || multiplier >= 1.3) {
+    return multiplier.toFixed(2);
+  }
+  const mlt = multiplier + 0.05;
+  return findSpeedUpFactor(actualDuration / mlt, targetDuration, mlt);
+}
+
+// delay to make more gaps between sentences
+const pauseDelay = 500;
+/**
+ * Calculates whether speeding up is required in order to fit within time constraints.
+ * Target is to make it fit 500ms before next chunk starts
+ */
+async function increaseSpeedSetting(
+  outputAudioChunkFilename: string,
+  nextChunkStartInMs: number,
+  translationChunk: TranslationChunk
+) {
+  const out =
+    await zx.$`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ${outputAudioChunkFilename}`;
+
+  const inputChunkDurationInMs = Math.floor(parseFloat(out.stdout) * 1000);
+
+  const shouldFitIn =
+    nextChunkStartInMs - translationChunk.start.asMilliseconds() - pauseDelay;
+  let doesFit = shouldFitIn > inputChunkDurationInMs;
+  let speedUpSetting = "";
+
+  if (!doesFit) {
+    const speedUpFactor = findSpeedUpFactor(
+      inputChunkDurationInMs,
+      shouldFitIn
+    );
+    speedUpSetting = "atempo=" + speedUpFactor + ",";
+  }
+  return speedUpSetting;
+}
+
 export function getOutputVideoFilename(
   inputFolder: string,
   outputFolder: string,
@@ -243,6 +302,22 @@ export function getOutputVideoFilename(
     getOutputFolder("root", inputFolder, outputFolder, file) +
     path.sep +
     path.basename(file.videoPath)
+  );
+}
+
+export function getOutputAudioChunkFilename(
+  inputFolder: string,
+  outputFolder: string,
+  translation: TranslationChunk,
+  file: InputVideoWithSrt
+) {
+  return (
+    getOutputFolder("audio", inputFolder, outputFolder, file) +
+    path.sep +
+    translation.start.format(periodFormat) +
+    "-" +
+    translation.end.format(periodFormat) +
+    ".wav"
   );
 }
 

@@ -30,7 +30,6 @@ If everything goes ok then you'll find similarly named video files in the `./out
 
 ## TODOs
 
-- make sure that an audio fragment fits within a timeframe and speed it up in case it doesn't
 - add simpler running within docker
 - add ability to sync subtitles (shift sync), probably automatic based on other subtitles?
   right now this command could be used
