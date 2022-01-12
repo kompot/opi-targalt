@@ -4,7 +4,7 @@ import path from "path";
 import zx, { ProcessOutput } from "zx";
 import klaw from "klaw";
 import { once } from "events";
-import srtParser2 from "srt-parser-2";
+import srtParser2, { Line } from "srt-parser-2";
 import dayjs from "dayjs";
 import dayjsDuration from "dayjs/plugin/duration";
 
@@ -21,7 +21,7 @@ type InputVideoWithSrt = {
   subtitlesPath: string;
 };
 
-const supportedSubtitlesExtension = ["srt"];
+const supportedSubtitlesExtension = "srt";
 // TODO make this configurable?
 const supportedVideoExtensions = ["mkv", "mp4"];
 
@@ -54,6 +54,24 @@ export const findFilesToProcess = async (
   return sutitleTiles;
 };
 
+const srtParserLineToTranslationChunk = (s: Line): TranslationChunk => {
+  return {
+    text: s.text,
+    start: dayjs.duration({
+      hours: parseInt(s.startTime.substring(0, 2), 10),
+      minutes: parseInt(s.startTime.substring(3, 5), 10),
+      seconds: parseInt(s.startTime.substring(6, 8), 10),
+      milliseconds: parseInt(s.startTime.substring(9), 10),
+    }),
+    end: dayjs.duration({
+      hours: parseInt(s.endTime.substring(0, 2), 10),
+      minutes: parseInt(s.endTime.substring(3, 5), 10),
+      seconds: parseInt(s.endTime.substring(6, 8), 10),
+      milliseconds: parseInt(s.endTime.substring(9), 10),
+    }),
+  };
+};
+
 export const findTranslationChunks = (
   file: InputVideoWithSrt
 ): TranslationChunk[] => {
@@ -61,23 +79,7 @@ export const findTranslationChunks = (
   var parser = new srtParser2();
   const subtitles = parser.fromSrt(content);
 
-  return subtitles.map(s => {
-    return {
-      text: s.text,
-      start: dayjs.duration({
-        hours: parseInt(s.startTime.substring(0, 2), 10),
-        minutes: parseInt(s.startTime.substring(3, 5), 10),
-        seconds: parseInt(s.startTime.substring(6, 8), 10),
-        milliseconds: parseInt(s.startTime.substring(9), 10),
-      }),
-      end: dayjs.duration({
-        hours: parseInt(s.endTime.substring(0, 2), 10),
-        minutes: parseInt(s.endTime.substring(3, 5), 10),
-        seconds: parseInt(s.endTime.substring(6, 8), 10),
-        milliseconds: parseInt(s.endTime.substring(9), 10),
-      }),
-    };
-  });
+  return subtitles.map(srtParserLineToTranslationChunk);
 };
 
 const periodFormat = "HH_mm_ss_SSS";
@@ -95,7 +97,7 @@ export const textToSpeech = (
     speed: 0.8,
   });
   const outputAudioFolder = getOutputFolder(
-    "audio",
+    "tmp",
     inputFolder,
     outputFolder,
     file
@@ -145,7 +147,7 @@ export const createAudioTrack = async (
   outputFolder: string
 ): Promise<void> => {
   const outputAudioFolder = getOutputFolder(
-    "audio",
+    "tmp",
     inputFolder,
     outputFolder,
     file
@@ -214,12 +216,14 @@ export const createAudioTrack = async (
     file
   );
 
-  await zx.$`ffmpeg \
+  const out = zx.$`ffmpeg \
   -i ${file.videoPath} \
   ${audioInputs} \
   ${filterComplex} \
   -map [mixout] \
   ${resultAudioFile}`;
+
+  await out;
 };
 
 export const createVideo = async (
@@ -297,10 +301,9 @@ export function getOutputVideoFilename(
   inputFolder: string,
   outputFolder: string,
   file: InputVideoWithSrt
-) {
-  return (
-    getOutputFolder("root", inputFolder, outputFolder, file) +
-    path.sep +
+): string {
+  return path.join(
+    getOutputFolder("root", inputFolder, outputFolder, file),
     path.basename(file.videoPath)
   );
 }
@@ -310,14 +313,15 @@ export function getOutputAudioChunkFilename(
   outputFolder: string,
   translation: TranslationChunk,
   file: InputVideoWithSrt
-) {
-  return (
-    getOutputFolder("audio", inputFolder, outputFolder, file) +
-    path.sep +
+): string {
+  const audioChunkName =
     translation.start.format(periodFormat) +
     "-" +
     translation.end.format(periodFormat) +
-    ".wav"
+    ".wav";
+  return path.join(
+    getOutputFolder("tmp", inputFolder, outputFolder, file),
+    audioChunkName
   );
 }
 
@@ -325,31 +329,132 @@ export function getOutputAudioFilename(
   inputFolder: string,
   outputFolder: string,
   file: InputVideoWithSrt
-) {
-  return (
-    getOutputFolder("audio", inputFolder, outputFolder, file) +
-    path.sep +
+): string {
+  return path.join(
+    getOutputFolder("tmp", inputFolder, outputFolder, file),
     "audio-tts.mp3"
   );
 }
 
 export function getOutputFolder(
-  type: "audio" | "root",
+  type: "tmp" | "root",
   inputFolder: string,
   outputFolder: string,
   file: InputVideoWithSrt
 ) {
-  const root =
-    outputFolder +
-    path.sep +
-    path.relative(inputFolder, path.dirname(file.subtitlesPath));
+  const root = path.join(
+    outputFolder,
+    path.relative(inputFolder, path.dirname(file.subtitlesPath))
+  );
   if (type === "root") {
     return root;
   }
-  return (
-    root +
-    path.sep +
-    "audio_" +
-    path.basename(file.videoPath, path.extname(file.videoPath))
+  return path.join(
+    root,
+    "tmp_" + path.basename(file.videoPath, path.extname(file.videoPath))
   );
+}
+
+const howManyOfNewSubtitleAreWithinOf100msOfOld = (
+  originalSubtitles: TranslationChunk[],
+  subtitlesToEmbed: TranslationChunk[],
+  shift: number
+): number => {
+  const x = subtitlesToEmbed.filter(chunkToEmbed =>
+    originalSubtitles.find(
+      chunkOriginal =>
+        chunkToEmbed.start.asMilliseconds() + shift - 50 <
+          chunkOriginal.start.asMilliseconds() &&
+        chunkToEmbed.start.asMilliseconds() + shift + 50 >
+          chunkOriginal.start.asMilliseconds()
+    )
+  );
+  console.log(
+    "At shift",
+    shift,
+    "it's",
+    x.length,
+    "of",
+    subtitlesToEmbed.length
+  );
+  return x.length;
+};
+
+const range = (start: number, stop: number, step: number) =>
+  Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step);
+
+const rangeToCheck = range(-2000, 2000, 50);
+
+function calculateSubtitlesShift(
+  originalSubtitles: TranslationChunk[],
+  subtitlesToEmbed: TranslationChunk[]
+): number {
+  let bestHitCount = 0;
+  let bestShift = 0;
+  rangeToCheck.forEach(shift => {
+    const hitCount = howManyOfNewSubtitleAreWithinOf100msOfOld(
+      originalSubtitles,
+      subtitlesToEmbed,
+      shift
+    );
+    if (hitCount > bestHitCount) {
+      bestShift = shift;
+      bestHitCount = hitCount;
+    }
+  });
+  return bestShift;
+}
+
+// TODO customize eng here and replace all occurences of English everywhere
+const baseSubtitleLang = "eng";
+
+export async function correctSubtitlesShift(
+  inputFolder: string,
+  outputFolder: string,
+  file: InputVideoWithSrt
+) {
+  const outputTmpFolder = getOutputFolder(
+    "tmp",
+    inputFolder,
+    outputFolder,
+    file
+  );
+  if (!fs.existsSync(outputTmpFolder)) {
+    fs.mkdirSync(outputTmpFolder, { recursive: true });
+  }
+
+  const originalSubtitlePath = path.join(
+    outputTmpFolder,
+    `original_subtitle_${baseSubtitleLang}.srt`
+  );
+
+  // TODO english
+  await zx.$`ffmpeg -y -i ${file.videoPath} -map "0:m:language:eng" -map "-0:v" -map "-0:a" ${originalSubtitlePath}`;
+
+  var parser = new srtParser2();
+
+  const our = parser.fromSrt(fs.readFileSync(file.subtitlesPath, "utf-8"));
+  const original = parser.fromSrt(
+    fs.readFileSync(originalSubtitlePath, "utf-8")
+  );
+  const shift = calculateSubtitlesShift(
+    original.map(srtParserLineToTranslationChunk),
+    our.map(srtParserLineToTranslationChunk)
+  );
+  console.log("Found best shift is ", shift);
+  if (shift === 0) {
+    console.log(
+      "Will not shift subtitles as they seem to be aligned good enough"
+    );
+  } else {
+    console.log("Will shift subtitles by", shift);
+    const offset = String(shift) + "ms";
+    const ext = path.extname(file.subtitlesPath);
+    const shiftedSrtFileName =
+      file.subtitlesPath.substring(0, file.subtitlesPath.lastIndexOf(ext)) +
+      "_shifted." +
+      supportedSubtitlesExtension;
+    await zx.$`ffmpeg -y -itsoffset ${offset} -i ${file.subtitlesPath} -c copy ${shiftedSrtFileName}`;
+    await zx.$`mv ${shiftedSrtFileName} ${file.subtitlesPath}`;
+  }
 }

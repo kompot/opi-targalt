@@ -11,6 +11,8 @@ import {
   createAudioTrack,
   getOutputVideoFilename,
   getOutputAudioFilename,
+  srtParserLineToTranslationChunk,
+  correctSubtitlesShift,
 } from "./convert";
 
 const cliInterface = yargs(hideBin(process.argv), "")
@@ -32,6 +34,13 @@ var argv = cliInterface.parseSync();
 (async () => {
   const filesToProcess = await findFilesToProcess(argv.input as string);
   for (const file of filesToProcess) {
+    await correctSubtitlesShift(
+      argv.input as string,
+      argv.output as string,
+      file
+    );
+  }
+  for (const file of filesToProcess) {
     const outputVideoFile = getOutputVideoFilename(
       argv.input as string,
       argv.output as string,
@@ -48,21 +57,21 @@ var argv = cliInterface.parseSync();
         outputVideoFile
       );
     } else {
-      const chunks = findTranslationChunks(file);
-      for (const chunk of chunks) {
-        await textToSpeech(
-          chunk,
-          file,
-          argv.input as string,
-          argv.output as string
-        );
-      }
       if (fs.existsSync(outputAudioFile)) {
         console.log(
           "Will skip creating audio as it exists in the output folder",
           outputAudioFile
         );
       } else {
+        const chunks = findTranslationChunks(file);
+        for (const chunk of chunks) {
+          await textToSpeech(
+            chunk,
+            file,
+            argv.input as string,
+            argv.output as string
+          );
+        }
         await createAudioTrack(
           chunks,
           file,

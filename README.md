@@ -28,15 +28,26 @@ You need `docker`, `docker-compose`, `node`, `pnpm`, `ffmpeg`, `curl`.
 
 If everything goes ok then you'll find similarly named video files in the `./output` folder but with an audio track and subtitles embedded.
 
+## What's going on under the hood when you run the converter
+
+- it tries to find video and matching subtitle files in `input` folder (so for each `X.mkv` there should be `X.srt`)
+- if original video file contains subtitles then it automatically will try to find better subtitles shift (TODO will fail if original file has no subtitles)
+- it creates `tmp_` folder in the `output` folder that will contain intermediate files: chunks of speech generated from `srt` source
+- in case something goes wrong (as speech generation is a lengthy process) you may just restart and already generated chunks will not be generated twice
+- when all chunks are ready then the final audio track is composed by joining original audio track volumed down to 40% and all the generated chunks
+- every chunk is checked whether it fits within required range and if it does not then special `ffmpeg` parameter is used to speed up the chunk
+- generated audio track is merged along with (probably shifted) subtitles into the source video file
+- the result is a single file in `output` folder with the same path as in input folder
+
+Original video files are not touched in any way. Original subtitles files are shifted inplace (should change that?).
+
 ## TODOs
 
 - add simpler running within docker
-- add ability to sync subtitles (shift sync), probably automatic based on other subtitles?
-  right now this command could be used
-  ```
-  # this will move subtitle 0.8 seconds backward
-  ffmpeg -itsoffset -0.8 -i ./input.srt -c copy output_with_shift.srt
-  ```
+- make it possible to add other languages easily
+- make it possible to set base language to any custom language, not only English (which is used to shift subtitles and in the final dubbed audio at low volume)
+- TECH DEBT: add better logging
+- TECH DEBT: init as a class so that input/output folder are not passed in every function
 
 ## What a weird name?!
 
