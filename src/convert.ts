@@ -84,17 +84,23 @@ export const findTranslationChunks = (
 
 const periodFormat = "HH_mm_ss_SSS";
 
-export const textToSpeech = (
+const cleanTagsRegex = /(<([^>]+)>)/gi;
+
+function normalizeText(input: string): string {
+  return input.replace(cleanTagsRegex, "");
+}
+
+export const textToSpeech = async (
   translation: TranslationChunk,
   file: InputVideoWithSrt,
   inputFolder: string,
   outputFolder: string,
   retryCount: number = 0
-): Promise<ProcessOutput | void> => {
+): Promise<void> => {
   const request = JSON.stringify({
-    text: translation.text,
+    text: normalizeText(translation.text),
     speaker: "mari",
-    speed: 0.8,
+    speed: 1,
   });
   const outputAudioFolder = getOutputFolder(
     "tmp",
@@ -123,11 +129,12 @@ export const textToSpeech = (
   }
 
   try {
-    return zx.$`curl \
-      -X POST http://localhost:5000/text-to-speech/v2 \
-      -H 'Content-Type: application/json' \
-      -d ${request} \
-      -o ${outputFileName}`;
+    await zx.$`curl \
+        --fail \
+        -X POST http://localhost:5000/text-to-speech/v2 \
+        -H 'Content-Type: application/json' \
+        -d ${request} \
+        -o ${outputFileName}`;
   } catch (e) {
     console.error("Failed to convert text to speech, will retry");
     return textToSpeech(
@@ -413,6 +420,7 @@ export async function correctSubtitlesShift(
   outputFolder: string,
   file: InputVideoWithSrt
 ) {
+  // TODO should store `_shifted` in TMP folder and not run this twice all!
   const outputTmpFolder = getOutputFolder(
     "tmp",
     inputFolder,
@@ -428,6 +436,7 @@ export async function correctSubtitlesShift(
     `original_subtitle_${baseSubtitleLang}.srt`
   );
 
+  // TODO do not run if exists
   // TODO english
   await zx.$`ffmpeg -y -i ${file.videoPath} -map "0:m:language:eng" -map "-0:v" -map "-0:a" ${originalSubtitlePath}`;
 
