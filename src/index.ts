@@ -3,28 +3,33 @@ import fs from "fs";
 import yargs from "yargs/yargs";
 import { hideBin } from "yargs/helpers";
 
-import {
-  findFilesToProcess,
-  findTranslationChunks,
-  textToSpeech,
-  createVideo,
-  createAudioTrack,
-  getOutputVideoFilename,
-  getOutputAudioFilename,
-  srtParserLineToTranslationChunk,
-  correctSubtitlesShift,
-} from "./convert";
+import { Converter } from "./converter";
+import { ttsFunctions } from "./tts-functions";
+
+const supportedTtsLanguages = ["est"] as const;
+export type SupportedLanguages = typeof supportedTtsLanguages[number];
 
 const cliInterface = yargs(hideBin(process.argv), "")
   .usage("Usage: pnpm run start -- [options]")
-  .demandOption("i")
-  .alias("i", "input")
-  .nargs("i", 1)
-  .describe("i", "Input folder")
-  .demandOption("o")
-  .alias("o", "output")
-  .nargs("o", 1)
-  .describe("o", "Output folder")
+  .option("input", {
+    nargs: 1,
+    alias: "i",
+    describe: "Input folder",
+    demandOption: true,
+  })
+  .option("output", {
+    nargs: 1,
+    alias: "o",
+    describe: "Output folder",
+    demandOption: true,
+  })
+  .option("language", {
+    choices: supportedTtsLanguages,
+    nargs: 1,
+    alias: "l",
+    describe: "Language to generate text-to-speech for",
+    demandOption: true,
+  })
   .help("h")
   .alias("h", "help")
   .epilog("Elagu Eesti");
@@ -32,25 +37,14 @@ const cliInterface = yargs(hideBin(process.argv), "")
 var argv = cliInterface.parseSync();
 
 (async () => {
-  const filesToProcess = await findFilesToProcess(argv.input as string);
+  const converter = new Converter(argv.input as string, argv.output as string);
+  const filesToProcess = await converter.findFilesToProcess();
   for (const file of filesToProcess) {
-    await correctSubtitlesShift(
-      argv.input as string,
-      argv.output as string,
-      file
-    );
+    await converter.correctSubtitlesShift(file);
   }
   for (const file of filesToProcess) {
-    const outputVideoFile = getOutputVideoFilename(
-      argv.input as string,
-      argv.output as string,
-      file
-    );
-    const outputAudioFile = getOutputAudioFilename(
-      argv.input as string,
-      argv.output as string,
-      file
-    );
+    const outputVideoFile = converter.getOutputVideoFilename(file);
+    const outputAudioFile = converter.getOutputAudioFilename(file);
     if (fs.existsSync(outputVideoFile)) {
       console.log(
         "Will skip file as it exists in the output folder",
@@ -63,23 +57,20 @@ var argv = cliInterface.parseSync();
           outputAudioFile
         );
       } else {
-        const chunks = findTranslationChunks(file);
-        for (const chunk of chunks) {
-          await textToSpeech(
-            chunk,
-            file,
-            argv.input as string,
-            argv.output as string
-          );
+        const chunks = converter.findTranslationChunks(file);
+        for (const c of chunks) {
+          const fileToGenerate = converter.shouldCreateAudioChunkAt(c, file);
+          if (fileToGenerate !== null) {
+            await ttsFunctions[argv.l as SupportedLanguages](
+              fileToGenerate,
+              c,
+              file
+            );
+          }
         }
-        await createAudioTrack(
-          chunks,
-          file,
-          argv.input as string,
-          argv.output as string
-        );
+        await converter.createAudioTrack(chunks, file);
       }
-      await createVideo(argv.input as string, argv.output as string, file);
+      await converter.createVideo(file);
     }
   }
 })();
