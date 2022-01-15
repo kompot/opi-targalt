@@ -12,21 +12,26 @@ All you need is original video file (`mkv`, `mp4`) and an subtitles (`srt`) file
 
 As of now only Estonian language is supported by means of https://github.com/TartuNLP/text-to-speech-api
 
-But it is trivial to make the project extensible so that it supports any TTS API available.
+## Other languages?
+
+Any other language could be added easily. Just add:
+- `docker-compose.yaml` that should expose text-to-speech API
+- add new language to `Makefile`
+- implement a function in `src/tts-functions` that will use that API
 
 ## Usage
 
-Proper instructions on how to use are to follow but if you are eager to try then follow these steps:
+You need `docker` and `docker-compose`
 
-You need `docker`, `docker-compose`, `node`, `pnpm`, `ffmpeg`, `curl`.
-
-1. Download and unpack TTS models to `./models` from https://github.com/TartuNLP/text-to-speech-worker/releases
-2. `pnpm install`
-3. `env RABBITMQ_USER=guest RABBITMQ_PASS=guest docker-compose -f docker-compose-tts-est.yaml up`
-4. Put your video files into `./input` along with subtitles (srt).
-5. `pnpm run start -- -i ./input -o ./output`
+1. [Estonian only] Download and unpack TTS models to `./models` from https://github.com/TartuNLP/text-to-speech-worker/releases
+2. `env LANGUAGE=est DIR_INPUT=./input DIR_OUTPUT=./output make start` to fire up TTS Worker
+3. `env LANGUAGE=est DIR_INPUT=./input DIR_OUTPUT=./output make convert` to convert files
 
 If everything goes ok then you'll find similarly named video files in the `./output` folder but with an audio track and subtitles embedded.
+
+In case you wanna use local file system (e. g. because docker is slow) then
+the last step could be run locally `pnpm run start -- --language est --input ./input --output ./output`.
+But then you need `ffmpeg`, `node@16`, `pnpm` installed locally.
 
 ## What's going on under the hood when you run the converter
 
@@ -43,8 +48,6 @@ Original video files are not touched in any way. Original subtitles files are sh
 
 ## TODOs
 
-- add simpler running within docker
-- make it possible to add other languages easily
 - make it possible to set base language to any custom language, not only English (which is used to shift subtitles and in the final dubbed audio at low volume)
 - TECH DEBT: add better logging
 - TECH DEBT: init as a class so that input/output folder are not passed in every function

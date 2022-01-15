@@ -22,7 +22,7 @@ export const textToSpeech = async (
   const request = JSON.stringify({
     text: normalizeText(translation.text),
     speaker: "mari",
-    speed: 1,
+    speed: 0.8,
   });
 
   try {

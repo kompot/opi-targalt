@@ -11,14 +11,5 @@ COPY ["package.json","pnpm-lock.yaml","/www/opi-targalt/"]
 COPY ["src/","/www/opi-targalt/src/"]
 
 WORKDIR /www/opi-targalt
-# RUN mkdir /www/data
-
-# RUN mkdir /www/data
-
-# RUN ls -la
-# VOLUME [ "/input" ]
-# RUN touch /input/abc.txt
-# RUN pnpm install --frozen-lockfile --prefer-offline --package-import-method copy
-
-
-RUN pnpm run start --help
+RUN pnpm install --frozen-lockfile --prefer-offline --package-import-method copy
+ENTRYPOINT []
