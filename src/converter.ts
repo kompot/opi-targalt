@@ -405,17 +405,25 @@ function calculateSubtitlesShift(
 ): number {
   let bestHitCount = 0;
   let bestShift = 0;
+  let anyMatch = false;
   rangeToCheck.forEach(shift => {
     const hitCount = howManyOfNewSubtitleAreWithinOf100msOfOld(
       originalSubtitles,
       subtitlesToEmbed,
       shift
     );
-    if (hitCount > bestHitCount) {
+    // if it's less then 10% then probably something is wrong and we
+    // just leave everything as it is
+    const minimumThreshold = hitCount > subtitlesToEmbed.length * 0.1;
+    if (hitCount > bestHitCount && minimumThreshold) {
       bestShift = shift;
       bestHitCount = hitCount;
+      anyMatch = true;
     }
   });
+  if (!anyMatch) {
+    console.log('No match found, will leave subtitle shift at 0');
+  }
   return bestShift;
 }
 

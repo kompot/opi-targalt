@@ -24,14 +24,10 @@ Any other language could be added easily. Just add:
 You need `docker` and `docker-compose`
 
 1. [Estonian only] Download and unpack TTS models to `./models` from https://github.com/TartuNLP/text-to-speech-worker/releases
-2. `env LANGUAGE=est DIR_INPUT=./input DIR_OUTPUT=./output make start` to fire up TTS Worker
-3. `env LANGUAGE=est DIR_INPUT=./input DIR_OUTPUT=./output make convert` to convert files
+2. `env LANGUAGE=est DIR_INPUT=./input DIR_OUTPUT=./output make start`
 
 If everything goes ok then you'll find similarly named video files in the `./output` folder but with an audio track and subtitles embedded.
-
-In case you wanna use local file system (e. g. because docker is slow) then
-the last step could be run locally `pnpm run start -- --language est --input ./input --output ./output`.
-But then you need `ffmpeg`, `node@16`, `pnpm` installed locally.
+Or just stop and restart, every run should continue from where it has stopped/failed (except for generating shifted subtitles, that's to fixed).
 
 ## What's going on under the hood when you run the converter
 

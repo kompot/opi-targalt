@@ -28,7 +28,7 @@ export const textToSpeech = async (
   try {
     await zx.$`curl \
         --fail \
-        -X POST http://localhost:5000/text-to-speech/v2 \
+        -X POST http://host.docker.internal:5000/text-to-speech/v2 \
         -H 'Content-Type: application/json' \
         -d ${request} \
         -o ${outputFileName}`;

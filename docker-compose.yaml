@@ -4,7 +4,7 @@ services:
   opi-targalt:
     depends_on: ['tts_api']
     build: .
-    command: pnpm start --help
+    command: pnpm run start -- --language ${LANGUAGE} --input /input --output /output
     volumes:
       - ${DIR_INPUT?}:/input
       - ${DIR_OUTPUT?}:/output
