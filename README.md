@@ -15,9 +15,8 @@ As of now only Estonian language is supported by means of https://github.com/Tar
 ## Other languages?
 
 Any other language could be added easily. Just add:
-- `docker-compose.yaml` that should expose text-to-speech API
-- add new language to `Makefile`
-- implement a function in `src/tts-functions` that will use that API
+- `docker-compose-tts-XXX.yaml` that should expose text-to-speech API
+- implement text-to-speech function in `src/tts-functions/XXX.ts` that will use that API
 
 ## Usage
 
