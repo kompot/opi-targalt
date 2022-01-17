@@ -18,6 +18,7 @@
     "@types/node": "^16",
     "@types/yargs": "^17",
     "dayjs": "^1.10.7",
+    "ffmpeg-static": "^4.4.1",
     "klaw": "^4.0.1",
     "srt-parser-2": "^1.1.7",
     "ts-node": "^10",

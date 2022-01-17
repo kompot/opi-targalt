@@ -83,7 +83,7 @@ export class Converter {
 
     // TODO do not run if exists
     // TODO english
-    await zx.$`ffmpeg -y -i ${file.videoPath} -map "0:m:language:eng" -map "-0:v" -map "-0:a" ${originalSubtitlePath}`;
+    await zx.$`./node_modules/ffmpeg-static/ffmpeg -y -i ${file.videoPath} -map "0:m:language:eng" -map "-0:v" -map "-0:a" ${originalSubtitlePath}`;
 
     var parser = new srtParser2();
 
@@ -108,7 +108,7 @@ export class Converter {
         file.subtitlesPath.substring(0, file.subtitlesPath.lastIndexOf(ext)) +
         "_shifted." +
         supportedSubtitlesExtension;
-      await zx.$`ffmpeg -y -itsoffset ${offset} -i ${file.subtitlesPath} -c copy ${shiftedSrtFileName}`;
+      await zx.$`./node_modules/ffmpeg-static/ffmpeg -y -itsoffset ${offset} -i ${file.subtitlesPath} -c copy ${shiftedSrtFileName}`;
       await zx.$`mv ${shiftedSrtFileName} ${file.subtitlesPath}`;
     }
   }
@@ -242,7 +242,7 @@ export class Converter {
 
     const resultAudioFile = this.getOutputAudioFilename(file);
 
-    const out = zx.$`ffmpeg \
+    const out = zx.$`./node_modules/ffmpeg-static/ffmpeg \
     -i ${file.videoPath} \
     ${audioInputs} \
     ${filterComplex} \
@@ -288,7 +288,6 @@ const srtParserLineToTranslationChunk = (s: Line): TranslationChunk => {
 };
 
 const periodFormat = "HH_mm_ss_SSS";
-
 
 function findSpeedUpFactor(
   actualDuration: number,
@@ -422,7 +421,7 @@ function calculateSubtitlesShift(
     }
   });
   if (!anyMatch) {
-    console.log('No match found, will leave subtitle shift at 0');
+    console.log("No match found, will leave subtitle shift at 0");
   }
   return bestShift;
 }

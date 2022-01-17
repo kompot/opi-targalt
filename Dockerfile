@@ -1,6 +1,6 @@
 FROM node:16.13.1-bullseye AS base
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends vim ffmpeg && \
+RUN apt-get update -y && apt-get install -y --no-install-recommends vim && \
     ln -s /usr/local/bin/nodejs /usr/bin/nodejs && \
     corepack enable && \
     corepack prepare pnpm@6.24.4 --activate && \
